@@ -1,0 +1,10 @@
+{
+  "name": "stronglifts-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stronglifts 5x5 workout tracker PWA",
+  "scripts": {
+    "start": "node server.js",
+    "start:https": "node server.js --https"
+  }
+}
