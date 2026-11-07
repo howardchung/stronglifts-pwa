@@ -10,7 +10,8 @@ A mobile-first, offline-capable Progressive Web App for tracking Stronglifts 5×
 - **Set tracking:** tap a set to mark it done (5). Tap again to count down the reps you actually got (4, 3, … 0), then tap once more to clear it.
 - **Rest timer:** starts automatically when you log a set (90 s, configurable), with +30s and Skip buttons.
 - **Timer notification:** a system notification updates every second with the time left, the next set and the end time. It has +30s and Skip buttons. When the rest ends you get a vibrating notification.
-- **History:** a list of every recorded workout, with weights and reps per set (green = all reps done, red = missed reps).
+- **Body weight:** enter your body weight before or during each workout, view a trend chart and stats in History, and edit body weight on any past workout.
+- **History:** a list of every recorded workout, with body weight, weights and reps per set (green = all reps done, red = missed reps).
 - **Storage:** on first launch the app asks you where to save your data. **Create new data file…** opens the Android file picker so you can choose a folder and file name. **Open existing data file…** reuses a file you already have (e.g. after reinstalling, or one in a synced folder). Every change is written to that JSON file, and a copy is kept in localStorage.
   - Browsers without the File System Access API (Firefox, iOS Safari) use browser storage, and you can back up with Export/Import JSON.
 

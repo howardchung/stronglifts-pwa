@@ -156,6 +156,42 @@ p { margin: 6px 0; }
 .set.fail { background: rgba(229, 72, 77, .15); border-color: var(--fail); color: var(--fail); }
 .actions { margin-top: 8px; }
 
+/* ---------- body weight ---------- */
+.bw-row {
+  padding-top: 12px; margin-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.bw-card { padding: 12px 16px; }
+.bw-title { font-weight: 700; display: block; }
+.bw-row p, .bw-card p { margin: 2px 0 0; }
+.bw-input-wrap {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--card2); border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 12px;
+}
+.bw-input-wrap:focus-within { border-color: var(--accent); }
+.bw-input-wrap input {
+  width: 72px; border: 0; background: none; color: var(--text);
+  font: inherit; font-weight: 800; font-size: 1.05rem; text-align: right;
+  padding: 2px 0; outline: none;
+}
+.bw-chip {
+  border: 1px solid var(--line); background: var(--card2); border-radius: 8px;
+  padding: 4px 10px; font-size: .8rem; font-weight: 600; color: var(--text);
+  white-space: nowrap;
+}
+.bw-chip span { color: var(--muted); font-weight: 400; margin-left: 2px; }
+.bw-current { display: flex; align-items: center; gap: 6px; }
+.bw-val { font-size: 1.25rem; font-weight: 800; }
+.bw-chart {
+  display: block; width: 100%; height: 64px; margin-top: 10px;
+  background: var(--card2); border-radius: 10px; overflow: visible;
+}
+.bw-area { fill: rgba(255, 107, 44, .14); }
+.bw-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.bw-dot { fill: var(--accent); stroke: var(--card); stroke-width: 1.5; }
+.bw-stats { margin-top: 8px; }
+
 /* ---------- history ---------- */
 .hist ul { list-style: none; padding: 0; margin: 10px 0 0; }
 .hist li {

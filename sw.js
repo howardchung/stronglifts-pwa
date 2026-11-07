@@ -1,5 +1,5 @@
 // Service worker: offline app shell + persistent rest-timer notification.
-const CACHE = 'sl55-v2';
+const CACHE = 'sl55-v3';
 const ASSETS = [
   './',
   'index.html',

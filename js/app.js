@@ -19,8 +19,15 @@ const defaultData = () => ({
     B: [tplEx('Squat', 5, 5, 5, 45), tplEx('Overhead Press', 5, 5, 5, 45), tplEx('Deadlift', 1, 5, 5, 95)],
   },
   overrides: {}, // exerciseKey -> weight to use for the next workout
-  workouts: [],  // { id, date, type, startedAt, finishedAt, exercises: [...] }
+  workouts: [],  // { id, date, type, startedAt, finishedAt, bodyWeight, exercises: [...] }
 });
+
+function parseBodyWeight(val) {
+  const s = String(val ?? '').trim();
+  if (!s) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) && n > 0 ? round(n) : null;
+}
 
 function normalize(d) {
   const def = defaultData();
@@ -33,7 +40,12 @@ function normalize(d) {
       B: Array.isArray(d.templates?.B) ? d.templates.B : def.templates.B,
     },
     overrides: d.overrides && typeof d.overrides === 'object' ? d.overrides : {},
-    workouts: Array.isArray(d.workouts) ? d.workouts : [],
+    workouts: Array.isArray(d.workouts)
+      ? d.workouts.map((w) => ({
+          ...w,
+          bodyWeight: parseBodyWeight(w?.bodyWeight),
+        }))
+      : [],
   };
 }
 
@@ -62,6 +74,7 @@ const store = new Storage();
 let data = defaultData();
 let tab = 'today';
 let pendingType = null; // user-selected A/B override before starting
+let pendingBodyWeight = null; // body weight entered before starting a workout
 
 const $ = (sel) => document.querySelector(sel);
 const view = $('#view');
@@ -101,6 +114,13 @@ function lastPerformance(name) {
   return null;
 }
 
+function lastBodyWeight(excludeId = null) {
+  for (const w of sortedWorkouts()) {
+    if (w.id !== excludeId && w.bodyWeight != null && w.bodyWeight > 0) return w.bodyWeight;
+  }
+  return null;
+}
+
 const isSuccess = (ex) => ex.results.every((r) => r !== null && r >= ex.reps);
 
 /** Weight suggested by history alone (ignores manual overrides). */
@@ -131,6 +151,8 @@ function plates(weight) {
 }
 
 function startWorkout(type) {
+  const bwInput = $('#body-weight-input');
+  const bw = bwInput ? parseBodyWeight(bwInput.value) : pendingBodyWeight;
   const consumed = {};
   const exercises = data.templates[type].map((t) => {
     const k = keyOf(t.name);
@@ -151,10 +173,12 @@ function startWorkout(type) {
     type,
     startedAt: new Date().toISOString(),
     finishedAt: null,
+    bodyWeight: bw,
     consumedOverrides: consumed,
     exercises,
   });
   pendingType = null;
+  pendingBodyWeight = null;
   persist();
   render();
 }
@@ -188,6 +212,8 @@ function tapSet(exIdx, setIdx) {
 function finishWorkout() {
   const w = currentWorkout();
   if (!w) return;
+  const bwInput = $('#body-weight-input');
+  if (bwInput) w.bodyWeight = parseBodyWeight(bwInput.value);
   const missing = w.exercises.reduce((n, e) => n + e.results.filter((r) => r === null).length, 0);
   if (missing && !confirm(`${missing} set(s) not logged. Finish anyway? Unlogged sets count as missed.`)) return;
   w.finishedAt = new Date().toISOString();
@@ -202,6 +228,7 @@ function discardWorkout() {
   const w = currentWorkout();
   if (!w || !confirm('Discard this workout? Logged sets will be lost.')) return;
   Object.assign(data.overrides, w.consumedOverrides || {});
+  pendingBodyWeight = w.bodyWeight ?? null;
   data.workouts = data.workouts.filter((x) => x !== w);
   timer.stop();
   persist();
@@ -248,6 +275,7 @@ function renderToday() {
   const type = pendingType ?? rotation;
   const exs = data.templates[type];
   const doneToday = data.workouts.filter((x) => x.finishedAt && x.date === todayStr());
+  const lastBw = lastBodyWeight();
 
   const rows = exs
     .map((t) => {
@@ -273,6 +301,19 @@ function renderToday() {
       <p class="muted small">${formatDate(todayStr())}${type !== rotation ? ` · Rotation says Workout ${rotation}` : ' · Next in rotation'}</p>
       ${exs.length
         ? `<ul class="preview">${rows}</ul>
+           <div class="bw-row row between">
+             <div>
+               <label for="body-weight-input" class="bw-title">Body weight</label>
+               <p class="muted small">${lastBw != null ? `Last: ${lastBw} lb` : 'Optional'}</p>
+             </div>
+             <div class="bw-input-wrap">
+               <input id="body-weight-input" type="number" inputmode="decimal" min="0" max="1000" step="any"
+                 placeholder="${lastBw != null ? lastBw : '—'}"
+                 value="${pendingBodyWeight ?? ''}"
+                 aria-label="Body weight in lb">
+               <span class="muted">lb</span>
+             </div>
+           </div>
            <button class="btn primary block" data-action="start-workout" data-type="${type}">Start Workout ${type}</button>`
         : `<p class="empty">No exercises in Workout ${type}. Add some in <a href="#" data-action="goto" data-tab="settings">Settings</a>.</p>`}
     </section>`;
@@ -281,6 +322,7 @@ function renderToday() {
 function renderWorkout(w) {
   const total = w.exercises.reduce((n, e) => n + e.sets, 0);
   const done = w.exercises.reduce((n, e) => n + e.results.filter((r) => r !== null).length, 0);
+  const lastBw = lastBodyWeight(w.id);
   const exHtml = w.exercises
     .map(
       (ex, i) => `
@@ -310,6 +352,19 @@ function renderWorkout(w) {
       </div>
       <span class="pill">${done}/${total} sets</span>
     </section>
+    <section class="card bw-card row between">
+      <div>
+        <label for="body-weight-input" class="bw-title">Body weight</label>
+        <p class="muted small">${lastBw != null ? `Last: ${lastBw} lb` : 'Track for this workout'}</p>
+      </div>
+      <div class="bw-input-wrap">
+        <input id="body-weight-input" type="number" inputmode="decimal" min="0" max="1000" step="any"
+          placeholder="${lastBw != null ? lastBw : '—'}"
+          value="${w.bodyWeight ?? ''}"
+          aria-label="Body weight in lb">
+        <span class="muted">lb</span>
+      </div>
+    </section>
     <p class="hint">Tap a set when complete. Tap again to lower reps if you missed.</p>
     ${exHtml}
     <div class="actions">
@@ -318,11 +373,71 @@ function renderWorkout(w) {
     </div>`;
 }
 
+function renderBodyWeightTrack(list) {
+  const pts = list.filter((w) => w.bodyWeight != null && w.bodyWeight > 0).reverse();
+  if (!pts.length) return '';
+  const latest = pts[pts.length - 1];
+  const first = pts[0];
+  const prev = pts.length >= 2 ? pts[pts.length - 2] : null;
+  const totalDiff = pts.length >= 2 ? round(latest.bodyWeight - first.bodyWeight) : null;
+  const prevDiff = prev ? round(latest.bodyWeight - prev.bodyWeight) : null;
+  const fmtDiff = (d) => (d > 0 ? `+${d}` : `${d}`);
+  const weights = pts.map((w) => w.bodyWeight);
+  const minW = Math.min(...weights);
+  const maxW = Math.max(...weights);
+
+  let chart = '';
+  if (pts.length >= 2) {
+    const W = 300;
+    const H = 64;
+    const padX = 10;
+    const padY = 12;
+    const innerW = W - padX * 2;
+    const innerH = H - padY * 2;
+    const coords = pts.map((w, i) => {
+      const x = round(padX + (i / (pts.length - 1)) * innerW);
+      const y = round(
+        maxW === minW ? H / 2 : padY + (1 - (w.bodyWeight - minW) / (maxW - minW)) * innerH
+      );
+      return { x, y, w };
+    });
+    const poly = coords.map((c) => `${c.x},${c.y}`).join(' ');
+    const area = `${coords[0].x},${H} ${poly} ${coords[coords.length - 1].x},${H}`;
+    chart = `
+      <svg class="bw-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Body weight trend">
+        <polygon points="${area}" class="bw-area" />
+        <polyline points="${poly}" class="bw-line" />
+        ${coords.map((c) => `<circle cx="${c.x}" cy="${c.y}" r="3.5" class="bw-dot"><title>${formatDate(c.w.date)}: ${c.w.bodyWeight} lb</title></circle>`).join('')}
+      </svg>
+      <div class="row between muted small bw-stats">
+        <span>Min ${minW} lb</span>
+        <span>Max ${maxW} lb</span>
+        <span>Total ${fmtDiff(totalDiff)} lb</span>
+      </div>`;
+  }
+
+  return `
+    <section class="card bw-track">
+      <div class="row between">
+        <div>
+          <h2>Body Weight</h2>
+          <p class="muted small">${pts.length} workout${pts.length === 1 ? '' : 's'} logged · Latest ${formatDate(latest.date)}</p>
+        </div>
+        <div class="bw-current">
+          <span class="bw-val">${latest.bodyWeight} lb</span>
+          ${prevDiff != null ? `<span class="tag ${prevDiff === 0 ? '' : 'up'}">${fmtDiff(prevDiff)} lb</span>` : ''}
+        </div>
+      </div>
+      ${chart}
+    </section>`;
+}
+
 function renderHistory() {
   const list = sortedWorkouts();
   if (!list.length) return `<p class="empty">No workouts recorded yet.<br>Start one from the Today tab.</p>`;
   const finished = list.filter((w) => w.finishedAt).length;
   return `
+    ${renderBodyWeightTrack(list)}
     <p class="muted small center">${finished} workout${finished === 1 ? '' : 's'} completed</p>
     ${list
       .map(
@@ -330,7 +445,10 @@ function renderHistory() {
       <article class="card hist">
         <div class="row between">
           <div class="row gap"><span class="badge">${w.type}</span><b>${formatDate(w.date)}</b>${w.finishedAt ? '' : '<span class="tag">in progress</span>'}</div>
-          <button class="icon-btn" data-action="delete-workout" data-id="${w.id}" aria-label="Delete workout">🗑</button>
+          <div class="row gap">
+            <button class="bw-chip" data-action="edit-body-weight" data-id="${w.id}" aria-label="Edit body weight">${w.bodyWeight != null ? `⚖️ ${w.bodyWeight} lb` : '+ Body wt'} <span aria-hidden="true">✎</span></button>
+            <button class="icon-btn" data-action="delete-workout" data-id="${w.id}" aria-label="Delete workout">🗑</button>
+          </div>
         </div>
         <ul>
           ${w.exercises
@@ -536,6 +654,48 @@ function weightModal(exIdx) {
   };
 }
 
+function bodyWeightModal(workoutId) {
+  const w = data.workouts.find((x) => x.id === workoutId);
+  if (!w) return;
+  const lastBw = lastBodyWeight(w.id);
+  const initial = w.bodyWeight ?? lastBw ?? '';
+  openModal(`
+    <form class="sheet" id="bw-form">
+      <h2>Body Weight · ${formatDate(w.date)}</h2>
+      <div class="stepper">
+        <button type="button" class="btn round" data-step="-1">−1</button>
+        <input id="bw-modal-input" type="number" inputmode="decimal" step="any" min="0" max="1000" placeholder="—" value="${initial}" aria-label="Body weight in lb">
+        <button type="button" class="btn round" data-step="1">+1</button>
+      </div>
+      <p class="muted small center">${lastBw != null ? `Previous logged: ${lastBw} lb` : 'Enter body weight in lb (leave blank to clear)'}</p>
+      <div class="row gap">
+        <button type="button" class="btn ghost grow" data-action="modal-close">Cancel</button>
+        ${w.bodyWeight != null ? '<button type="button" class="btn ghost danger" id="bw-clear">Clear</button>' : ''}
+        <button type="submit" class="btn primary grow">Save</button>
+      </div>
+    </form>`);
+  const input = $('#bw-modal-input');
+  modal.querySelectorAll('[data-step]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const base = num(input.value, lastBw ?? 150);
+      input.value = Math.max(0, round(base + num(b.dataset.step, 0)));
+    })
+  );
+  $('#bw-clear')?.addEventListener('click', () => {
+    w.bodyWeight = null;
+    closeModal();
+    persist();
+    render();
+  });
+  $('#bw-form').onsubmit = (e) => {
+    e.preventDefault();
+    w.bodyWeight = parseBodyWeight(input.value);
+    closeModal();
+    persist();
+    render();
+  };
+}
+
 function templateModal(type, idx) {
   const editing = idx != null;
   const t = editing ? data.templates[type][idx] : { name: '', sets: 5, reps: 5, increment: 5, startWeight: 45 };
@@ -636,6 +796,7 @@ const actions = {
   'start-workout': (el) => { ensureNotificationPermission(); startWorkout(el.dataset.type); },
   'set-tap': (el) => tapSet(+el.dataset.ex, +el.dataset.set),
   'edit-weight': (el) => weightModal(+el.dataset.ex),
+  'edit-body-weight': (el) => bodyWeightModal(el.dataset.id),
   'finish-workout': finishWorkout,
   'discard-workout': discardWorkout,
   'delete-workout': (el) => {
@@ -769,6 +930,18 @@ document.addEventListener('click', (e) => {
   if (fn) {
     e.preventDefault();
     fn(el);
+  }
+});
+
+view.addEventListener('input', (e) => {
+  if (e.target.id !== 'body-weight-input') return;
+  const bw = parseBodyWeight(e.target.value);
+  const w = currentWorkout();
+  if (w) {
+    w.bodyWeight = bw;
+    persist();
+  } else {
+    pendingBodyWeight = bw;
   }
 });
 
